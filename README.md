@@ -1,5 +1,10 @@
 # Samsumg-research
 
+https://www.kaggle.com/jsrojas/ip-network-traffic-flows-labeled-with-87-apps
+위 사이트에서 csv 파일을 다운로드 받은 후, dataset 폴더 안에 넣으세요.
+
+그 후 python preprocess.py를 실행하여 dataset을 preprocessing 합니다
+
 ### Stochastic Gradient Descent 
 python train.py --batch_size 1
 ### Batch Gradient Descent
