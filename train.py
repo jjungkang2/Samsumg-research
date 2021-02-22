@@ -65,8 +65,6 @@ def run_epoch(epoch, model, optimizer, criterion, device, is_train, data_loader)
     if is_train: model.train()
     else: model.eval()
 
-    f = open("result/{}.txt".format(args.filename), 'a')
-
     for batch in data_loader:
         x, y = batch['X'].to(device), batch['Y'].to(device)
         batch_size = x.shape[0]
@@ -86,9 +84,6 @@ def run_epoch(epoch, model, optimizer, criterion, device, is_train, data_loader)
             
     total_loss /= n_total
     print("Epoch {} / {} / Loss {:.3f} / Acc {:.1f}%".format(epoch, 'Train' if is_train else 'Valid', np.mean(total_loss), n_correct/n_total*100))
-    
-    if is_train:
-        f.write("{} {} {}\n".format(epoch, np.mean(total_loss), n_correct/n_total*100))
 
     return total_loss
 
@@ -147,8 +142,6 @@ def main(args):
     best_val_loss = np.inf
     t0 = time.time()
 
-    f = open("result/{}_time.txt".format(args.filename), 'a')
-
     for epoch in range(args.epochs):
 
         run_epoch(epoch, model, optimizer, criterion, device, is_train=True, data_loader=train_dataloader)
@@ -157,16 +150,15 @@ def main(args):
             val_loss = run_epoch(epoch, model, None, criterion, device, is_train=False, data_loader=valid_dataloader)
             
         print("Epoch {} / {:.1f} seconds used.".format(epoch, time.time()-t0))
-        f.write("{}\n".format(time.time()-t0))
         t0 = time.time()
             
         if val_loss < best_val_loss:
             print("min_loss updated!")
             best_val_loss = val_loss
-            torch.save(model.state_dict(), "model/{}_best.pt".format(args.filename))
+            torch.save(model.state_dict(), "model/{}_best.pt".format(args.optimizer))
 
 
-    model.load_state_dict(torch.load("model/{}_best.pt".format(args.filename)))
+    model.load_state_dict(torch.load("model/{}_best.pt".format(args.optimizer)))
     run_test(model, criterion, device, data_loader=test_dataloader)
 
 if __name__ == '__main__':
@@ -182,7 +174,6 @@ if __name__ == '__main__':
     parser.add_argument('--use_cpu', action="store_true")
     parser.add_argument('--max_len', type=int, default=10000)
     parser.add_argument('--optimizer', choices=['SGD', 'momentum', 'NAG', 'Adagrad', 'RMSProp', 'Adam'], default='SGD')
-    parser.add_argument('--filename', type=str, default='SGD')
 
     args = parser.parse_args()
     
