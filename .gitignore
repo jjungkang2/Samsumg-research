@@ -1,2 +1,5 @@
 __pycache__/
+model/
+result/
+dataset/
 make_image.py
