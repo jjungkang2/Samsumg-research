@@ -47,19 +47,23 @@ if __name__=='__main__':
     df = pd.read_csv('dataset/Dataset-Unicauca-Version2-87Atts.csv')
     print("===== original =====")
     print("shape:", df.shape)
+    print(df.head())
 
     df = clean_df(df)
     print("===== after clean_df =====")
     print("shape:", df.shape)
+    print(df.head())
 
     df = filter_df(df)
     print("===== after filter_df =====")
     print("shape:", df.shape)
+    print(df.head())
 
     X, Y = normalize_split_df(df)
     print("===== after normalize_split_df =====")
     print("X shape:", X.shape)
     print("Y shape:", Y.shape)
+    print(df.head())
 
     with open('dataset/preprocessed_dataset.pickle', 'wb') as f:
         pickle.dump(X, f)

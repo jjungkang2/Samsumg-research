@@ -1,6 +1,6 @@
-데이터 증강에 대한 조사 및 적용 사례 연구
+An Overview of Gradient Descent Optimization Algorithms with Applications
 ------------------------------------------ 
-데이터 증강에 대해 조사한 뒤, 이를 직접 코드에 적용해보았습니다.
+Gradient Descent Optimization의 다양한 알고리즘에 대해 조사한 뒤, 이를 직접 코드에 적용해보았습니다.
 
 ## How to Run
 1. https://www.kaggle.com/jsrojas/ip-network-traffic-flows-labeled-with-87-apps  
@@ -17,16 +17,27 @@ python preprocess.py
 python train.py 
 ```
 
-데이터 셋은 1000개를 사용합니다.  
+데이터 셋은 10000개를 사용합니다.  
 데이터 셋의 크기를 늘리고 싶을 때는 --max_len으로 길이를 설정할 수 있는데,  
 -1의 값을 넣어준다면 전체 데이터 셋을 사용할 수 있습니다.  
 
 ## Options  
 ``` python
-### Mixup, make 200 images
-python train.py --augmentation Mixup --new_data_len 200
-### Delete with 20% probability, make 200 images
-python train.py --augmentation Delete --proability 0.2 --new_data_len 200
-### Modify with 20% probability, make 200 images
-python train.py --augmentation Modify --proability 0.2 --new_data_len 200
+### Stochastic Gradient Descent 
+python train.py --batch_size 1
+### Batch Gradient Descent
+python train.py --batch_size 7000
+### Mini-Batch Gradient Descent
+python train.py --batch_size 100
+
+### momentum
+python train.py --optimizer momentum
+### NAG
+python train.py --optimizer NAG
+### Adagrad
+python train.py --optimizer Adagrad
+### RMSProp
+python train.py --optimizer RMSProp --lr 0.001
+### Adam
+python train.py --optimizer Adam --lr 0.001
 ```

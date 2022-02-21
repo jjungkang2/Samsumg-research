@@ -9,85 +9,20 @@ from torch.utils.data import Dataset, DataLoader
 from torch.utils.data.dataset import random_split
 import random
 import pickle
-from sklearn import preprocessing
+from sklearn.model_selection import train_test_split
 
 from model import MLP_Classifier
 
 class Network_Dataset(Dataset):
-    def __init__(self, file_path, max_len, augmentation='None', new_data_len=0):
-        le = preprocessing.LabelEncoder()
-
+    def __init__(self, file_path, max_len):
+        
         with open(file_path, 'rb') as f:
-            self.X = torch.from_numpy(pickle.load(f)).float()
-            self.Y = torch.from_numpy(le.fit_transform(pickle.load(f)))
-            self.Y = self.Y.to(torch.int64)
+            self.X = torch.tensor(pickle.load(f)).float()
+            self.Y = torch.tensor(pickle.load(f))
 
         if max_len != -1:
-            indices = torch.randperm(self.Y.size(0))
-
-            self.X = torch.index_select(self.X, dim=0, index=indices)
-            self.Y = torch.index_select(self.Y, dim=0, index=indices)
-
             self.X = self.X[:max_len]
             self.Y = self.Y[:max_len]
-
-        if augmentation == 'Mixup':
-            X_new = []
-            Y_new = []
-            
-            data_len = self.Y.size(0)
-
-            for _ in range(new_data_len):
-                data1_idx = random.randint(0, data_len-1)
-                same_classes = (self.Y == self.Y[data1_idx]).nonzero(as_tuple=True)[0]
-                data2_idx = same_classes[random.randint(0, same_classes.size(0)-1)]
-
-                X_new.append((self.X[data1_idx] + self.X[data2_idx]) / 2)
-                Y_new.append(self.Y[data1_idx])
-
-            self.X = torch.cat([self.X, torch.stack(X_new)], dim=0)
-            self.Y = torch.cat([self.Y, torch.stack(Y_new)], dim=0)
-        
-        elif augmentation == 'Delete':
-            X_new = []
-            Y_new = []
-            
-            data_len = self.Y.size(0)
-            feature_len = self.X.size(1)
-
-            for _ in range(new_data_len):
-                data_idx = random.randint(0, data_len-1)
-
-                delete_indices = torch.bernoulli(torch.ones(feature_len) * args.probability)
-                data = torch.where(delete_indices==0, self.X[data_idx], torch.zeros(feature_len))
-
-                X_new.append(data)
-                Y_new.append(self.Y[data_idx])
-
-            self.X = torch.cat([self.X, torch.stack(X_new)], dim=0)
-            self.Y = torch.cat([self.Y, torch.stack(Y_new)], dim=0)
-
-        elif augmentation == 'Modify':
-            X_new = []
-            Y_new = []
-            
-            data_len = self.Y.size(0)
-            feature_len = self.X.size(1)
-
-            for _ in range(new_data_len):
-                data_idx = random.randint(0, data_len-1)
-
-                delete_indices = torch.bernoulli(torch.ones(feature_len) * args.probability)
-                data = torch.where(delete_indices==0, self.X[data_idx], self.X[data_idx] + torch.randn(feature_len)/2)
-
-                X_new.append(data)
-                Y_new.append(self.Y[data_idx])
-
-            self.X = torch.cat([self.X, torch.stack(X_new)], dim=0)
-            self.Y = torch.cat([self.Y, torch.stack(Y_new)], dim=0)
-
-        elif augmentation == 'None':
-            pass
 
     def __len__(self):
         return len(self.X)
@@ -100,12 +35,9 @@ def set_seed(seed):
     np.random.seed(seed)
     random.seed(seed)
 
-def load_dataset(valid_size, test_size, batch_size):
+def load_dataset(valid_size, test_size, batch_size, device):
 
-    network_dataset = Network_Dataset(file_path='dataset/preprocessed_dataset.pickle', 
-                                      max_len=args.max_len,
-                                      augmentation=args.augmentation,
-                                      new_data_len=args.new_data_len)
+    network_dataset = Network_Dataset(file_path='dataset/preprocessed_dataset.pickle', max_len=args.max_len)
     
     total_length = len(network_dataset)
 
@@ -116,10 +48,10 @@ def load_dataset(valid_size, test_size, batch_size):
     print("train {} / valid {} / test {}...".format(train_len, valid_len, test_len))
 
     train_dataset, valid_dataset, test_dataset = random_split(network_dataset, [train_len, valid_len, test_len])
-
-    train_dataloader = DataLoader(train_dataset, batch_size = batch_size, shuffle = True, drop_last = True)
-    valid_dataloader = DataLoader(valid_dataset, batch_size = batch_size, shuffle = False, drop_last = False)
-    test_dataloader = DataLoader(test_dataset, batch_size = batch_size, shuffle = False, drop_last = False)
+    
+    train_dataloader = DataLoader(train_dataset, batch_size = args.batch_size, shuffle = True, drop_last = True)
+    valid_dataloader = DataLoader(valid_dataset, batch_size = args.batch_size, shuffle = False, drop_last = False)
+    test_dataloader = DataLoader(test_dataset, batch_size = args.batch_size, shuffle = False, drop_last = False)
 
     return train_dataloader, valid_dataloader, test_dataloader
 
@@ -187,14 +119,28 @@ def main(args):
 
     set_seed(0)
     
-    train_dataloader, valid_dataloader, test_dataloader = load_dataset(args.valid_size, args.test_size, args.batch_size)
+    train_dataloader, valid_dataloader, test_dataloader = load_dataset(args.valid_size, args.test_size, args.batch_size, device)
     print("loaded dataset..")
 
     model = MLP_Classifier(hidden_dim=args.hidden_dim).to(device)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adagrad(model.parameters(), lr=args.lr)
+    optimizer = None
+
+    if args.optimizer == 'SGD':
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr)
+    elif args.optimizer == 'momentum':
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9)
+    elif args.optimizer == 'NAG':
+        optimizer = torch.optim.SGD(model.parameters(), lr=args.lr, momentum=0.9, nesterov=True)
+    elif args.optimizer == 'Adagrad':
+        optimizer = torch.optim.Adagrad(model.parameters(), lr=args.lr)
+    elif args.optimizer == 'RMSProp':
+        optimizer = torch.optim.RMSprop(model.parameters(), lr=args.lr, eps=1e-08)
+    elif args.optimizer == 'Adam':
+        optimizer = torch.optim.Adam(model.parameters(), lr=args.lr, eps=1e-08)
 
     best_val_loss = np.inf
+    t0 = time.time()
 
     for epoch in range(args.epochs):
 
@@ -203,16 +149,20 @@ def main(args):
         with torch.no_grad():
             val_loss = run_epoch(epoch, model, None, criterion, device, is_train=False, data_loader=valid_dataloader)
             
+        print("Epoch {} / {:.1f} seconds used.".format(epoch, time.time()-t0))
+        t0 = time.time()
+            
         if val_loss < best_val_loss:
             print("min_loss updated!")
             best_val_loss = val_loss
-            torch.save(model.state_dict(), "model/{}_best.pt".format(args.augmentation))
+            torch.save(model.state_dict(), "model/{}_best.pt".format(args.optimizer))
 
-    model.load_state_dict(torch.load("model/{}_best.pt".format(args.augmentation)))
+
+    model.load_state_dict(torch.load("model/{}_best.pt".format(args.optimizer)))
     run_test(model, criterion, device, data_loader=test_dataloader)
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description = "Samsung Research - Data Augmentation")
+    parser = argparse.ArgumentParser(description = "Samsung Research - Optimizer")
 
     parser.add_argument('--epochs', type=int, default=200)
     parser.add_argument('--batch_size', type=int, default=100)
@@ -222,11 +172,8 @@ if __name__ == '__main__':
     parser.add_argument('--hidden_dim', type=int, default=256)
 
     parser.add_argument('--use_cpu', action="store_true")
-    parser.add_argument('--max_len', type=int, default=1000)
-
-    parser.add_argument('--augmentation', choices=['None', 'Mixup', 'Delete', 'Modify'], default='None')
-    parser.add_argument('--new_data_len', type=int, default=0)
-    parser.add_argument('--probability', type=float, default=0.1)
+    parser.add_argument('--max_len', type=int, default=10000)
+    parser.add_argument('--optimizer', choices=['SGD', 'momentum', 'NAG', 'Adagrad', 'RMSProp', 'Adam'], default='SGD')
 
     args = parser.parse_args()
     
